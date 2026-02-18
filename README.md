@@ -130,13 +130,15 @@ Belege aus dem Databricks SQL Editor für die wichtigsten Pipeline-Schritte.
 - Warehouse nicht aktiv: SQL-Queries laufen nur mit gestartetem SQL Warehouse.
 - Leere Gold-Ergebnisse: zuerst prüfen, ob Bronze- und Silver-Tabellen erfolgreich aufgebaut wurden.
 
-## Notebooks (optional zur SQL-Variante)
+## Notebooks (optional)
 
 Das SQL-Runbook unter `sql/` ist die primäre Referenz (Source of Truth).  
-Die Notebook-Implementierung unter `notebooks/` ist eine getestete alternative PySpark-Ausführung und erzeugt dieselben Kern-Tabellen für Bronze, Silver, SCD2 und Gold.
+Die Notebooks unter `notebooks/` sind eine alternative PySpark-Ausführung derselben Pipeline (Bronze -> Silver -> SCD2 -> Gold).
 
-Run Checklist (Notebook-Reihenfolge):
-1. `notebooks/01_bronze_ingestion.py`
-2. `notebooks/02_silver_transform.py`
-3. `notebooks/04_scd2_customers.py`
-4. `notebooks/03_gold_kpis.py`
+Reihenfolge:
+1. `notebooks/01_setup.py`
+2. `notebooks/02_bronze.py`
+3. `notebooks/03_silver.py`
+4. `notebooks/04_scd2.py`
+5. `notebooks/05_gold.py`
+6. `notebooks/06_validation.py`
