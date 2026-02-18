@@ -28,10 +28,12 @@ databricks-retail-lakehouse/
     products.csv
     orders.csv
   notebooks/
-    01_bronze_ingestion.py
-    02_silver_transform.py
-    03_gold_kpis.py
-    04_scd2_customers.py
+    01_setup.py
+    02_bronze.py
+    03_silver.py
+    04_scd2.py
+    05_gold.py
+    06_validation.py
   sql/
     01_setup.sql
     02_bronze.sql
@@ -122,6 +124,7 @@ Belege aus dem Databricks SQL Editor für die wichtigsten Pipeline-Schritte.
 ### Übersicht
 
 ![Table Overview](docs/screenshots/07_table_overview.png)
+![E2E Validation](docs/screenshots/lakehouse_pipeline_e2e_validation.png)
 
 ## Troubleshooting
 
