@@ -75,7 +75,6 @@ Gold:
 - `retail_lakehouse.gold_daily_revenue`
 - `retail_lakehouse.gold_product_revenue`
 - `retail_lakehouse.gold_top_customers`
-- `retail_lakehouse.gold_aov`
 
 ### Validierungs-Queries
 
@@ -115,7 +114,6 @@ SQL-Variante (`sql/04_scd2.sql`) enthält einen klaren Initial-Load mit:
 - `gold_daily_revenue`
 - `gold_product_revenue`
 - `gold_top_customers`
-- `gold_aov`
 
 ## Beispielabfragen
 
@@ -125,7 +123,6 @@ USE retail_lakehouse;
 SELECT * FROM gold_daily_revenue ORDER BY order_date;
 SELECT * FROM gold_product_revenue ORDER BY total_revenue DESC LIMIT 10;
 SELECT * FROM gold_top_customers ORDER BY total_revenue DESC LIMIT 10;
-SELECT * FROM gold_aov;
 
 SELECT * FROM silver_customers_scd2 WHERE is_current = true;
 ```
