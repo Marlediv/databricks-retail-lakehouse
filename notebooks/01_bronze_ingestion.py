@@ -2,21 +2,17 @@
 from pyspark.sql import functions as F
 
 # COMMAND ----------
-# Optional: in Databricks CE, set this widget to your uploaded CSV location.
-# Example: dbfs:/FileStore/databricks-retail-lakehouse/data
-try:
-    dbutils.widgets.text("source_base_path", "dbfs:/FileStore/databricks-retail-lakehouse/data")
-    source_base_path = dbutils.widgets.get("source_base_path")
-except NameError:
-    source_base_path = "data"
-
+# Configuration
 DATABASE = "retail_lakehouse"
+CUSTOMERS_PATH = "/Volumes/workspace/retail_lakehouse/retail_lakehouse_files/customers.csv"
+PRODUCTS_PATH = "/Volumes/workspace/retail_lakehouse/retail_lakehouse_files/products.csv"
+ORDERS_PATH = "/Volumes/workspace/retail_lakehouse/retail_lakehouse_files/orders.csv"
+
 spark.sql(f"CREATE DATABASE IF NOT EXISTS {DATABASE}")
 spark.sql(f"USE {DATABASE}")
 
 # COMMAND ----------
-def load_csv_with_metadata(file_name: str):
-    path = f"{source_base_path}/{file_name}"
+def load_bronze_csv(path: str):
     return (
         spark.read.format("csv")
         .option("header", True)
@@ -27,13 +23,68 @@ def load_csv_with_metadata(file_name: str):
     )
 
 # COMMAND ----------
-bronze_customers = load_csv_with_metadata("customers.csv")
-bronze_products = load_csv_with_metadata("products.csv")
-bronze_orders = load_csv_with_metadata("orders.csv")
+bronze_customers = load_bronze_csv(CUSTOMERS_PATH)
+bronze_products = load_bronze_csv(PRODUCTS_PATH)
+bronze_orders = load_bronze_csv(ORDERS_PATH)
 
 # COMMAND ----------
-(bronze_customers.write.format("delta").mode("overwrite").option("overwriteSchema", "true").saveAsTable("bronze_customers"))
-(bronze_products.write.format("delta").mode("overwrite").option("overwriteSchema", "true").saveAsTable("bronze_products"))
-(bronze_orders.write.format("delta").mode("overwrite").option("overwriteSchema", "true").saveAsTable("bronze_orders"))
+(
+    bronze_customers.write.format("delta")
+    .mode("overwrite")
+    .option("overwriteSchema", "true")
+    .saveAsTable(f"{DATABASE}.bronze_customers")
+)
+(
+    bronze_products.write.format("delta")
+    .mode("overwrite")
+    .option("overwriteSchema", "true")
+    .saveAsTable(f"{DATABASE}.bronze_products")
+)
+(
+    bronze_orders.write.format("delta")
+    .mode("overwrite")
+    .option("overwriteSchema", "true")
+    .saveAsTable(f"{DATABASE}.bronze_orders")
+)
 
 print("Bronze tables written: bronze_customers, bronze_products, bronze_orders")
+
+# COMMAND ----------
+# Validation
+validation_tables = [
+    "bronze_customers",
+    "bronze_products",
+    "bronze_orders",
+]
+
+for table_name in validation_tables:
+    full_name = f"{DATABASE}.{table_name}"
+    count_df = spark.sql(f"SELECT '{table_name}' AS table_name, COUNT(*) AS row_count FROM {full_name}")
+    count_df.show(truncate=False)
+
+if spark.catalog.tableExists(f"{DATABASE}.silver_customers_current"):
+    print("Dedupe check: silver_customers_current")
+    spark.sql(
+        f"""
+        SELECT customer_id, COUNT(*) AS cnt
+        FROM {DATABASE}.silver_customers_current
+        GROUP BY customer_id
+        HAVING COUNT(*) > 1
+        """
+    ).show(truncate=False)
+else:
+    print("Dedupe check skipped: silver_customers_current does not exist yet.")
+
+if spark.catalog.tableExists(f"{DATABASE}.silver_customers_scd2"):
+    print("SCD2 check: multiple current rows")
+    spark.sql(
+        f"""
+        SELECT customer_id, COUNT(*) AS current_rows
+        FROM {DATABASE}.silver_customers_scd2
+        WHERE is_current = true
+        GROUP BY customer_id
+        HAVING COUNT(*) > 1
+        """
+    ).show(truncate=False)
+else:
+    print("SCD2 check skipped: silver_customers_scd2 does not exist yet.")

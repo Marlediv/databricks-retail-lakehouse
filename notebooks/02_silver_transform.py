@@ -3,50 +3,54 @@ from pyspark.sql import functions as F
 from pyspark.sql.window import Window
 
 # COMMAND ----------
+# Configuration
 DATABASE = "retail_lakehouse"
+
 spark.sql(f"CREATE DATABASE IF NOT EXISTS {DATABASE}")
 spark.sql(f"USE {DATABASE}")
 
-def deduplicate_latest(df, pk_col: str):
-    w = Window.partitionBy(pk_col).orderBy(F.col("updated_at").desc(), F.col("ingestion_ts").desc())
-    return df.withColumn("rn", F.row_number().over(w)).filter(F.col("rn") == 1).drop("rn")
+# COMMAND ----------
+def deduplicate_latest(df, key_col: str):
+    window_spec = Window.partitionBy(key_col).orderBy(F.col("updated_at").desc(), F.col("ingestion_ts").desc())
+    return df.withColumn("rn", F.row_number().over(window_spec)).filter(F.col("rn") == 1).drop("rn")
 
 # COMMAND ----------
-bronze_customers = spark.table("bronze_customers")
-bronze_products = spark.table("bronze_products")
-bronze_orders = spark.table("bronze_orders")
+bronze_customers = spark.table(f"{DATABASE}.bronze_customers")
+bronze_products = spark.table(f"{DATABASE}.bronze_products")
+bronze_orders = spark.table(f"{DATABASE}.bronze_orders")
+
+# COMMAND ----------
+silver_products = (
+    bronze_products.select(
+        F.col("product_id").cast("int").alias("product_id"),
+        F.col("product_name").cast("string").alias("product_name"),
+        F.col("category").cast("string").alias("category"),
+        F.col("price").cast("decimal(10,2)").alias("price"),
+        F.to_timestamp("updated_at").alias("updated_at"),
+        F.col("ingestion_ts").cast("timestamp").alias("ingestion_ts"),
+        F.col("source_file").cast("string").alias("source_file"),
+    )
+)
 
 # COMMAND ----------
 customers_typed = (
     bronze_customers.select(
         F.col("customer_id").cast("int").alias("customer_id"),
-        F.coalesce(F.col("first_name"), F.lit("Unknown")).alias("first_name"),
-        F.coalesce(F.col("last_name"), F.lit("Unknown")).alias("last_name"),
-        F.coalesce(F.col("email"), F.concat(F.lit("unknown_"), F.col("customer_id"), F.lit("@example.com"))).alias("email"),
-        F.coalesce(F.col("city"), F.lit("Unknown")).alias("city"),
+        F.coalesce(F.col("first_name").cast("string"), F.lit("Unknown")).alias("first_name"),
+        F.coalesce(F.col("last_name").cast("string"), F.lit("Unknown")).alias("last_name"),
+        F.coalesce(
+            F.col("email").cast("string"),
+            F.concat(F.lit("unknown_"), F.col("customer_id").cast("string"), F.lit("@example.com")),
+        ).alias("email"),
+        F.coalesce(F.col("city").cast("string"), F.lit("Unknown")).alias("city"),
         F.to_date("signup_date").alias("signup_date"),
         F.to_timestamp("updated_at").alias("updated_at"),
-        F.col("ingestion_ts"),
-        F.col("source_file"),
+        F.col("ingestion_ts").cast("timestamp").alias("ingestion_ts"),
+        F.col("source_file").cast("string").alias("source_file"),
     )
     .filter(F.col("customer_id").isNotNull())
 )
-customers_silver = deduplicate_latest(customers_typed, "customer_id")
-
-# COMMAND ----------
-products_typed = (
-    bronze_products.select(
-        F.col("product_id").cast("int").alias("product_id"),
-        F.coalesce(F.col("product_name"), F.lit("Unknown Product")).alias("product_name"),
-        F.coalesce(F.col("category"), F.lit("Uncategorized")).alias("category"),
-        F.coalesce(F.col("price").cast("double"), F.lit(0.0)).alias("price"),
-        F.to_timestamp("updated_at").alias("updated_at"),
-        F.col("ingestion_ts"),
-        F.col("source_file"),
-    )
-    .filter(F.col("product_id").isNotNull())
-)
-products_silver = deduplicate_latest(products_typed, "product_id")
+silver_customers_current = deduplicate_latest(customers_typed, "customer_id")
 
 # COMMAND ----------
 orders_typed = (
@@ -58,17 +62,16 @@ orders_typed = (
         F.col("product_id").cast("int").alias("product_id"),
         F.coalesce(F.col("quantity").cast("int"), F.lit(1)).alias("quantity"),
         F.to_timestamp("updated_at").alias("updated_at"),
-        F.col("ingestion_ts"),
-        F.col("source_file"),
+        F.col("ingestion_ts").cast("timestamp").alias("ingestion_ts"),
+        F.col("source_file").cast("string").alias("source_file"),
     )
     .filter(F.col("order_line_id").isNotNull())
 )
-orders_silver = deduplicate_latest(orders_typed, "order_line_id")
+dedup_orders = deduplicate_latest(orders_typed, "order_line_id")
 
-# COMMAND ----------
 silver_order_lines = (
-    orders_silver.alias("o")
-    .join(products_silver.alias("p"), on="product_id", how="left")
+    dedup_orders.alias("o")
+    .join(silver_products.alias("p"), on="product_id", how="left")
     .select(
         F.col("o.order_line_id"),
         F.col("o.order_id"),
@@ -79,14 +82,62 @@ silver_order_lines = (
         F.col("p.category"),
         F.col("p.price"),
         F.col("o.quantity"),
-        (F.col("o.quantity") * F.coalesce(F.col("p.price"), F.lit(0.0))).alias("line_revenue"),
+        (F.col("o.quantity") * F.col("p.price")).cast("decimal(12,2)").alias("line_revenue"),
         F.col("o.updated_at"),
+        F.col("o.ingestion_ts"),
+        F.col("o.source_file"),
     )
 )
 
 # COMMAND ----------
-(customers_silver.write.format("delta").mode("overwrite").option("overwriteSchema", "true").saveAsTable("silver_customers_current"))
-(products_silver.write.format("delta").mode("overwrite").option("overwriteSchema", "true").saveAsTable("silver_products"))
-(silver_order_lines.write.format("delta").mode("overwrite").option("overwriteSchema", "true").saveAsTable("silver_order_lines"))
+(
+    silver_products.write.format("delta")
+    .mode("overwrite")
+    .option("overwriteSchema", "true")
+    .saveAsTable(f"{DATABASE}.silver_products")
+)
+(
+    silver_customers_current.write.format("delta")
+    .mode("overwrite")
+    .option("overwriteSchema", "true")
+    .saveAsTable(f"{DATABASE}.silver_customers_current")
+)
+(
+    silver_order_lines.write.format("delta")
+    .mode("overwrite")
+    .option("overwriteSchema", "true")
+    .saveAsTable(f"{DATABASE}.silver_order_lines")
+)
 
-print("Silver tables written: silver_customers_current, silver_products, silver_order_lines")
+print("Silver tables written: silver_products, silver_customers_current, silver_order_lines")
+
+# COMMAND ----------
+# Validation
+for table_name in ["silver_products", "silver_customers_current", "silver_order_lines"]:
+    spark.sql(
+        f"SELECT '{table_name}' AS table_name, COUNT(*) AS row_count FROM {DATABASE}.{table_name}"
+    ).show(truncate=False)
+
+print("Dedupe check: silver_customers_current")
+spark.sql(
+    f"""
+    SELECT customer_id, COUNT(*) AS cnt
+    FROM {DATABASE}.silver_customers_current
+    GROUP BY customer_id
+    HAVING COUNT(*) > 1
+    """
+).show(truncate=False)
+
+if spark.catalog.tableExists(f"{DATABASE}.silver_customers_scd2"):
+    print("SCD2 check: multiple current rows")
+    spark.sql(
+        f"""
+        SELECT customer_id, COUNT(*) AS current_rows
+        FROM {DATABASE}.silver_customers_scd2
+        WHERE is_current = true
+        GROUP BY customer_id
+        HAVING COUNT(*) > 1
+        """
+    ).show(truncate=False)
+else:
+    print("SCD2 check skipped: silver_customers_scd2 does not exist yet.")

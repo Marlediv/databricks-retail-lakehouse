@@ -2,14 +2,14 @@
 from pyspark.sql import functions as F
 
 # COMMAND ----------
+# Configuration
 DATABASE = "retail_lakehouse"
+TARGET_TABLE = f"{DATABASE}.silver_customers_scd2"
+
 spark.sql(f"CREATE DATABASE IF NOT EXISTS {DATABASE}")
 spark.sql(f"USE {DATABASE}")
 
-TARGET_TABLE = "silver_customers_scd2"
-
 # COMMAND ----------
-# Ensure target table exists with expected schema.
 spark.sql(
     f"""
     CREATE TABLE IF NOT EXISTS {TARGET_TABLE} (
@@ -28,7 +28,7 @@ spark.sql(
 
 # COMMAND ----------
 source_current = (
-    spark.table("silver_customers_current")
+    spark.table(f"{DATABASE}.silver_customers_current")
     .select("customer_id", "first_name", "last_name", "email", "city")
     .withColumn(
         "record_hash",
@@ -47,7 +47,7 @@ source_current = (
 source_current.createOrReplaceTempView("stg_customers_current")
 
 # COMMAND ----------
-# 1) Expire changed current records.
+# Expire changed current records.
 spark.sql(
     f"""
     MERGE INTO {TARGET_TABLE} AS tgt
@@ -61,7 +61,7 @@ spark.sql(
 )
 
 # COMMAND ----------
-# 2) Insert new customers and newly changed versions.
+# Insert new customers and changed versions.
 spark.sql(
     f"""
     MERGE INTO {TARGET_TABLE} AS tgt
@@ -86,11 +86,46 @@ spark.sql(
         src.email,
         src.city,
         current_timestamp(),
-        CAST(NULL AS TIMESTAMP),
+        TIMESTAMP('9999-12-31 00:00:00'),
         true,
         src.record_hash
       )
     """
 )
 
-print("SCD2 table updated: silver_customers_scd2")
+print("SCD2 table merged: silver_customers_scd2")
+
+# COMMAND ----------
+# Validation
+spark.sql(
+    f"SELECT 'silver_customers_scd2' AS table_name, COUNT(*) AS row_count FROM {TARGET_TABLE}"
+).show(truncate=False)
+
+if spark.catalog.tableExists(f"{DATABASE}.silver_customers_current"):
+    print("Dedupe check: silver_customers_current")
+    spark.sql(
+        f"""
+        SELECT customer_id, COUNT(*) AS cnt
+        FROM {DATABASE}.silver_customers_current
+        GROUP BY customer_id
+        HAVING COUNT(*) > 1
+        """
+    ).show(truncate=False)
+else:
+    print("Dedupe check skipped: silver_customers_current does not exist yet.")
+
+scd2_dupes = spark.sql(
+    f"""
+    SELECT customer_id, COUNT(*) AS current_rows
+    FROM {TARGET_TABLE}
+    WHERE is_current = true
+    GROUP BY customer_id
+    HAVING COUNT(*) > 1
+    """
+)
+
+print("SCD2 check: multiple current rows")
+scd2_dupes.show(truncate=False)
+
+if scd2_dupes.limit(1).count() > 0:
+    raise ValueError("SCD2 validation failed: multiple current rows found for at least one customer_id.")
