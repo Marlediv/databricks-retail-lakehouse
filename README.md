@@ -100,6 +100,29 @@ Wichtige Prüfungen aus `sql/06_validation.sql`:
 - Dedupe-Checks auf `customer_id` in `silver_customers_current`
 - Dedupe-Checks auf aktuelle Datensätze (`is_current = true`) in `silver_customers_scd2`
 
+## Screenshots (Evidence)
+
+Belege aus dem Databricks SQL Editor für die wichtigsten Pipeline-Schritte.
+
+### Bronze
+
+![Bronze Preview](docs/screenshots/01_bronze_preview.png)
+
+### Silver
+
+![Silver Preview](docs/screenshots/02_silver_preview.png)
+![SCD2 Validation](docs/screenshots/03_scd2_validation.png)
+
+### Gold
+
+![Gold Daily Revenue](docs/screenshots/04_gold_daily_revenue.png)
+![Gold Product Revenue](docs/screenshots/05_gold_product_revenue.png)
+![Gold Top Customers](docs/screenshots/06_gold_top_customers.png)
+
+### Übersicht
+
+![Table Overview](docs/screenshots/07_table_overview.png)
+
 ## Troubleshooting
 
 - Falscher DB-Kontext: sicherstellen, dass `USE retail_lakehouse;` aktiv ist.
