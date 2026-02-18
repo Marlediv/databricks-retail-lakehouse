@@ -1,6 +1,23 @@
 # databricks-retail-lakehouse
 
-Mini-Projekt für Databricks Community Edition mit Medallion Architecture (Bronze/Silver/Gold), Delta Lake, PySpark-first und SCD Type 2 für Kunden.
+Retail Lakehouse Mini-Projekt auf Databricks mit einem klaren Medallion-Aufbau (Bronze, Silver, Gold) und Delta-Tabellen. Die Pipeline verarbeitet CSV-Daten aus Unity Catalog Volumes, bereitet sie schrittweise auf und liefert KPI-Tabellen für Reporting. Zusätzlich wird eine SCD2-Kundendimension aufgebaut und mit einfachen Qualitätsprüfungen validiert.
+
+## Warum dieses Projekt?
+
+- Zeigt, wie operative Retail-Daten in eine stabile Analysebasis überführt werden.
+- Trennt Rohdatenverarbeitung und KPI-Berechnung, damit Änderungen kontrollierbar bleiben.
+- Liefert nachvollziehbare Kennzahlen als Grundlage für Produkt-, Umsatz- und Kundenanalysen.
+
+## Was demonstriert es technisch?
+
+- Datenzugriff über Unity Catalog Volume Paths.
+- Delta-Tabellen als Speicherformat (`USING DELTA`).
+- Medallion-Architektur (Bronze/Silver/Gold).
+- Deduplizierung mit `ROW_NUMBER()` auf Basis von `updated_at`.
+- SCD Type 2 für Kunden mit Hash-basierter Änderungslogik.
+- Idempotente Ausführung durch `CREATE OR REPLACE` / kontrollierte Reloads.
+- Data Quality Checks über dedizierte Validierungsqueries.
+- KPI-Layer für tägliche Umsätze, Produktumsatz und Top-Kunden.
 
 ## Projektstruktur
 
@@ -23,42 +40,41 @@ databricks-retail-lakehouse/
     05_gold.sql
     06_validation.sql
   docs/
-    data_dictionary.md
+    architecture.mmd
     architecture.png
+    data_dictionary.md
     screenshots/
       .gitkeep
+      README.md
   README.md
 ```
 
-## Setup in Databricks Community Edition
+## Architektur
 
-1. Repository in Databricks Repos importieren.
-2. Lokalen `data/`-Ordner nach DBFS hochladen, z. B. nach:
-   - `dbfs:/FileStore/databricks-retail-lakehouse/data`
-3. Notebook-Reihenfolge ausführen:
-   1. `notebooks/01_bronze_ingestion.py`
-   2. `notebooks/02_silver_transform.py`
-   3. `notebooks/04_scd2_customers.py`
-   4. `notebooks/03_gold_kpis.py`
+![Architecture](docs/architecture.png)
+
+Editierbare Quelle: `docs/architecture.mmd`
 
 ## Databricks SQL Runbook
 
-Run-Reihenfolge im SQL Editor:
+### Setup
 
-1. `sql/01_setup.sql`
-2. `sql/02_bronze.sql`
-3. `sql/03_silver.sql`
-4. `sql/04_scd2.sql`
-5. `sql/05_gold.sql`
-6. `sql/06_validation.sql`
-
-### Unity Catalog Volume Paths
-
+1. SQL Warehouse starten.
+2. CSV-Dateien ins Volume legen:
 - `/Volumes/workspace/retail_lakehouse/retail_lakehouse_files/customers.csv`
 - `/Volumes/workspace/retail_lakehouse/retail_lakehouse_files/products.csv`
 - `/Volumes/workspace/retail_lakehouse/retail_lakehouse_files/orders.csv`
 
-### Erwartete Tabellen je Layer
+### Run order
+
+1. Setup: `sql/01_setup.sql`
+2. Daten laden (Bronze): `sql/02_bronze.sql`
+3. Silver-Transformation: `sql/03_silver.sql`
+4. SCD2 aufbauen: `sql/04_scd2.sql`
+5. Gold-KPIs berechnen: `sql/05_gold.sql`
+6. Validierung ausführen: `sql/06_validation.sql`
+
+## Expected Outputs
 
 Bronze:
 - `retail_lakehouse.bronze_customers`
@@ -76,72 +92,21 @@ Gold:
 - `retail_lakehouse.gold_product_revenue`
 - `retail_lakehouse.gold_top_customers`
 
-### Validierungs-Queries
+## Validierung
 
+Wichtige Prüfungen aus `sql/06_validation.sql`:
 - `SHOW TABLES IN retail_lakehouse;`
-- Row counts für:
-  - `bronze_customers`
-  - `silver_customers_current`
-  - `silver_customers_scd2` (nur `is_current = true`)
-  - `gold_daily_revenue`
-- Dedupe Checks:
-  - `silver_customers_current` darf keine mehrfachen `customer_id` enthalten
-  - `silver_customers_scd2` darf für `is_current = true` keine mehrfachen `customer_id` enthalten
+- Row counts für `bronze_customers`, `silver_customers_current`, `silver_customers_scd2` (nur `is_current = true`) und `gold_daily_revenue`
+- Dedupe-Checks auf `customer_id` in `silver_customers_current`
+- Dedupe-Checks auf aktuelle Datensätze (`is_current = true`) in `silver_customers_scd2`
 
-## Architektur (Bronze / Silver / Gold)
+## Troubleshooting
 
-- Bronze:
-  - Rohdaten aus CSV als Delta-Tabellen
-  - Metadaten `ingestion_ts` und `source_file`
-- Silver:
-  - Typisierung, Null-Handling, Deduplizierung nach PK mit neuestem `updated_at`
-  - Berechnung `line_revenue` durch Join von Orders und Products
-- Gold:
-  - KPI-Aggregationen für Reporting/BI
+- Falscher DB-Kontext: sicherstellen, dass `USE retail_lakehouse;` aktiv ist.
+- Fehlerhafte Volume-Pfade: Pfade exakt wie oben verwenden und Dateinamen prüfen.
+- Warehouse nicht aktiv: SQL-Queries laufen nur mit gestartetem SQL Warehouse.
+- Leere Gold-Ergebnisse: zuerst prüfen, ob Bronze- und Silver-Tabellen erfolgreich aufgebaut wurden.
 
-## SCD Type 2 (nur Customers)
+## Notebooks (optional zur SQL-Variante)
 
-Notebook `04_scd2_customers.py` pflegt `silver_customers_scd2` per Delta `MERGE`.
-
-SQL-Variante (`sql/04_scd2.sql`) enthält einen klaren Initial-Load mit:
-- Hash-basierter Versionslogik via `sha2(concat_ws('||', ...), 256)`
-- `valid_from` = Ladezeitpunkt
-- `valid_to` = `9999-12-31`
-- `is_current` = aktueller Datensatzmarker
-
-## KPI-Tabellen (Gold)
-
-- `gold_daily_revenue`
-- `gold_product_revenue`
-- `gold_top_customers`
-
-## Beispielabfragen
-
-```sql
-USE retail_lakehouse;
-
-SELECT * FROM gold_daily_revenue ORDER BY order_date;
-SELECT * FROM gold_product_revenue ORDER BY total_revenue DESC LIMIT 10;
-SELECT * FROM gold_top_customers ORDER BY total_revenue DESC LIMIT 10;
-
-SELECT * FROM silver_customers_scd2 WHERE is_current = true;
-```
-
-## Delta Lake Features im Projekt
-
-- Delta-Tabellen mit `USING DELTA`
-- Schema Enforcement
-- ACID-Transaktionen
-- Time Travel möglich, z. B.:
-
-```sql
-SELECT * FROM silver_customers_scd2 VERSION AS OF 0;
-```
-
-## Lessons Learned
-
-- Medallion trennt Rohdaten, bereinigte Daten und KPI-Layer klar.
-- Dedupe mit `ROW_NUMBER()` + `updated_at DESC` ist robust und nachvollziehbar.
-- SCD2 über Hashing vereinfacht Change Detection.
-- Delta Tables machen Pipelines wiederholbar und stabil.
-- Eigene Validierungs-Queries verhindern stille Datenqualitätsfehler.
+Die Notebook-Implementierung unter `notebooks/` bildet dieselben Layer fachlich ab. Für reproduzierbare SQL-Ausführung ist das Runbook unter `sql/` die Referenz.
