@@ -15,9 +15,18 @@ databricks-retail-lakehouse/
     02_silver_transform.py
     03_gold_kpis.py
     04_scd2_customers.py
+  sql/
+    01_setup.sql
+    02_bronze.sql
+    03_silver.sql
+    04_scd2.sql
+    05_gold.sql
+    06_validation.sql
   docs/
     data_dictionary.md
     architecture.png
+    screenshots/
+      .gitkeep
   README.md
 ```
 
@@ -31,7 +40,54 @@ databricks-retail-lakehouse/
    2. `notebooks/02_silver_transform.py`
    3. `notebooks/04_scd2_customers.py`
    4. `notebooks/03_gold_kpis.py`
-4. Optional im Bronze-Notebook Widget `source_base_path` anpassen, falls ein anderer Upload-Pfad verwendet wird.
+
+## Databricks SQL Runbook
+
+Run-Reihenfolge im SQL Editor:
+
+1. `sql/01_setup.sql`
+2. `sql/02_bronze.sql`
+3. `sql/03_silver.sql`
+4. `sql/04_scd2.sql`
+5. `sql/05_gold.sql`
+6. `sql/06_validation.sql`
+
+### Unity Catalog Volume Paths
+
+- `/Volumes/workspace/retail_lakehouse/retail_lakehouse_files/customers.csv`
+- `/Volumes/workspace/retail_lakehouse/retail_lakehouse_files/products.csv`
+- `/Volumes/workspace/retail_lakehouse/retail_lakehouse_files/orders.csv`
+
+### Erwartete Tabellen je Layer
+
+Bronze:
+- `retail_lakehouse.bronze_customers`
+- `retail_lakehouse.bronze_products`
+- `retail_lakehouse.bronze_orders`
+
+Silver:
+- `retail_lakehouse.silver_customers_current`
+- `retail_lakehouse.silver_products`
+- `retail_lakehouse.silver_order_lines`
+- `retail_lakehouse.silver_customers_scd2`
+
+Gold:
+- `retail_lakehouse.gold_daily_revenue`
+- `retail_lakehouse.gold_product_revenue`
+- `retail_lakehouse.gold_top_customers`
+- `retail_lakehouse.gold_aov`
+
+### Validierungs-Queries
+
+- `SHOW TABLES IN retail_lakehouse;`
+- Row counts für:
+  - `bronze_customers`
+  - `silver_customers_current`
+  - `silver_customers_scd2` (nur `is_current = true`)
+  - `gold_daily_revenue`
+- Dedupe Checks:
+  - `silver_customers_current` darf keine mehrfachen `customer_id` enthalten
+  - `silver_customers_scd2` darf für `is_current = true` keine mehrfachen `customer_id` enthalten
 
 ## Architektur (Bronze / Silver / Gold)
 
@@ -46,15 +102,13 @@ databricks-retail-lakehouse/
 
 ## SCD Type 2 (nur Customers)
 
-Notebook `04_scd2_customers.py` pflegt `silver_customers_scd2` per Delta `MERGE`:
+Notebook `04_scd2_customers.py` pflegt `silver_customers_scd2` per Delta `MERGE`.
 
-- Wenn aktueller Datensatz (`is_current=true`) sich in den fachlichen Attributen ändert (`record_hash`):
-  - alten Datensatz schließen (`valid_to = current_timestamp`, `is_current = false`)
-  - neuen aktuellen Datensatz einfügen
-- Wenn Kunde neu ist:
-  - direkt als aktueller Datensatz einfügen
-
-Die Logik ist idempotent: erneute Ausführung ohne neue Änderungen erzeugt keine Duplikate.
+SQL-Variante (`sql/04_scd2.sql`) enthält einen klaren Initial-Load mit:
+- Hash-basierter Versionslogik via `sha2(concat_ws('||', ...), 256)`
+- `valid_from` = Ladezeitpunkt
+- `valid_to` = `9999-12-31`
+- `is_current` = aktueller Datensatzmarker
 
 ## KPI-Tabellen (Gold)
 
@@ -73,22 +127,24 @@ SELECT * FROM gold_product_revenue ORDER BY total_revenue DESC LIMIT 10;
 SELECT * FROM gold_top_customers ORDER BY total_revenue DESC LIMIT 10;
 SELECT * FROM gold_aov;
 
--- SCD2 aktuelle Kundensicht
 SELECT * FROM silver_customers_scd2 WHERE is_current = true;
 ```
 
 ## Delta Lake Features im Projekt
 
-- Schema Enforcement über Delta-Tabellen
-- ACID-Transaktionen für konsistente Schreibvorgänge
+- Delta-Tabellen mit `USING DELTA`
+- Schema Enforcement
+- ACID-Transaktionen
 - Time Travel möglich, z. B.:
 
 ```sql
 SELECT * FROM silver_customers_scd2 VERSION AS OF 0;
 ```
 
-## Hinweise zur Idempotenz
+## Lessons Learned
 
-- Bronze/Silver/Gold Writes mit `mode("overwrite")`
-- SCD2 mit deterministischer `MERGE`-Logik (Expire + Insert)
-- Notebooks können mehrfach ausgeführt werden, ohne unkontrollierte Duplikate
+- Medallion trennt Rohdaten, bereinigte Daten und KPI-Layer klar.
+- Dedupe mit `ROW_NUMBER()` + `updated_at DESC` ist robust und nachvollziehbar.
+- SCD2 über Hashing vereinfacht Change Detection.
+- Delta Tables machen Pipelines wiederholbar und stabil.
+- Eigene Validierungs-Queries verhindern stille Datenqualitätsfehler.
