@@ -22,7 +22,6 @@ def load_csv_with_metadata(path: str):
         .option("header", True)
         .load(path)
         .withColumn("ingestion_ts", F.current_timestamp())
-        # Unity Catalog: input_file_name() nicht unterstützt, nutze _metadata.file_path
         .withColumn("source_file", F.col("_metadata.file_path"))
     )
 
