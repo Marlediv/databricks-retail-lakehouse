@@ -18,7 +18,9 @@ def test_notebook_or_exported_python_exists() -> None:
     dbx_export_files = (
         list(Path("notebooks").glob("*.py")) if Path("notebooks").is_dir() else []
     )
-    assert ipynb_files or dbx_export_files, "No notebooks or exported .py files found in the repo."
+    assert (
+        ipynb_files or dbx_export_files
+    ), "No notebooks or exported .py files found in the repo."
 
 
 def test_required_structure_exists() -> None:

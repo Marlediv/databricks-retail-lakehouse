@@ -6,7 +6,6 @@
 # COMMAND ----------
 from notebooks._spark import spark
 
-
 DATABASE = "retail_lakehouse"
 
 expected_tables = [
@@ -46,25 +45,21 @@ else:
 
     # COMMAND ----------
     print("Dedupe check: silver_customers_current")
-    spark.sql(
-        f"""
+    spark.sql(f"""
         SELECT customer_id, COUNT(*) AS row_count
         FROM {DATABASE}.silver_customers_current
         GROUP BY customer_id
         HAVING COUNT(*) > 1
-        """
-    ).show(truncate=False)
+        """).show(truncate=False)
 
     print("SCD2 current check: silver_customers_scd2")
-    spark.sql(
-        f"""
+    spark.sql(f"""
         SELECT customer_id, COUNT(*) AS current_rows
         FROM {DATABASE}.silver_customers_scd2
         WHERE is_current = true
         GROUP BY customer_id
         HAVING COUNT(*) > 1
-        """
-    ).show(truncate=False)
+        """).show(truncate=False)
 
     # COMMAND ----------
     print("Gold preview: gold_daily_revenue")

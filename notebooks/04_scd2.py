@@ -18,8 +18,7 @@ else:
     spark.sql(f"USE {DATABASE}")
 
     # COMMAND ----------
-    spark.sql(
-        f"""
+    spark.sql(f"""
         CREATE TABLE IF NOT EXISTS {TARGET_TABLE} (
           customer_id INT,
           first_name STRING,
@@ -31,8 +30,7 @@ else:
           is_current BOOLEAN,
           record_hash STRING
         ) USING DELTA
-        """
-    )
+        """)
 
     # COMMAND ----------
     scd2_source = (
@@ -57,8 +55,7 @@ else:
 
     # COMMAND ----------
     # 1) Close current records when tracked attributes changed.
-    spark.sql(
-        f"""
+    spark.sql(f"""
         MERGE INTO {TARGET_TABLE} AS tgt
         USING stg_scd2_customers AS src
         ON tgt.customer_id = src.customer_id AND tgt.is_current = true
@@ -66,13 +63,11 @@ else:
           UPDATE SET
             tgt.valid_to = current_timestamp(),
             tgt.is_current = false
-        """
-    )
+        """)
 
     # COMMAND ----------
     # 2) Insert new customers and new current versions for changed customers.
-    spark.sql(
-        f"""
+    spark.sql(f"""
         MERGE INTO {TARGET_TABLE} AS tgt
         USING stg_scd2_customers AS src
         ON tgt.customer_id = src.customer_id AND tgt.is_current = true
@@ -99,8 +94,7 @@ else:
             true,
             src.record_hash
           )
-        """
-    )
+        """)
 
     print("SCD2 merge finished: silver_customers_scd2")
 
@@ -109,19 +103,15 @@ else:
     # MAGIC ## Validation
 
     # COMMAND ----------
-    spark.sql(
-        f"SELECT COUNT(*) AS row_count FROM {TARGET_TABLE}"
-    ).show(truncate=False)
+    spark.sql(f"SELECT COUNT(*) AS row_count FROM {TARGET_TABLE}").show(truncate=False)
 
-    duplicate_current = spark.sql(
-        f"""
+    duplicate_current = spark.sql(f"""
         SELECT customer_id, COUNT(*) AS current_rows
         FROM {TARGET_TABLE}
         WHERE is_current = true
         GROUP BY customer_id
         HAVING COUNT(*) > 1
-        """
-    )
+        """)
 
     duplicate_current.show(truncate=False)
 

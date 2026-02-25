@@ -19,21 +19,15 @@ else:
     silver_customers_current = spark.table(f"{DATABASE}.silver_customers_current")
 
     # COMMAND ----------
-    gold_daily_revenue = (
-        silver_order_lines.groupBy("order_date")
-        .agg(
-            F.sum("line_revenue").cast("decimal(14,2)").alias("daily_revenue"),
-            F.countDistinct("order_id").alias("orders"),
-        )
+    gold_daily_revenue = silver_order_lines.groupBy("order_date").agg(
+        F.sum("line_revenue").cast("decimal(14,2)").alias("daily_revenue"),
+        F.countDistinct("order_id").alias("orders"),
     )
 
     # COMMAND ----------
-    gold_product_revenue = (
-        silver_order_lines.groupBy("product_id")
-        .agg(
-            F.sum("line_revenue").cast("decimal(14,2)").alias("total_revenue"),
-            F.sum("quantity").alias("total_qty"),
-        )
+    gold_product_revenue = silver_order_lines.groupBy("product_id").agg(
+        F.sum("line_revenue").cast("decimal(14,2)").alias("total_revenue"),
+        F.sum("quantity").alias("total_qty"),
     )
 
     # COMMAND ----------

@@ -34,62 +34,54 @@ else:
         )
 
     # COMMAND ----------
-    silver_products = (
-        bronze_products.select(
-            F.col("product_id").cast("int").alias("product_id"),
-            F.col("product_name").cast("string").alias("product_name"),
-            F.col("category").cast("string").alias("category"),
-            F.col("price").cast("decimal(10,2)").alias("price"),
-            F.to_timestamp("updated_at").alias("updated_at"),
-            F.col("ingestion_ts").cast("timestamp").alias("ingestion_ts"),
-            F.col("source_file").cast("string").alias("source_file"),
-        )
+    silver_products = bronze_products.select(
+        F.col("product_id").cast("int").alias("product_id"),
+        F.col("product_name").cast("string").alias("product_name"),
+        F.col("category").cast("string").alias("category"),
+        F.col("price").cast("decimal(10,2)").alias("price"),
+        F.to_timestamp("updated_at").alias("updated_at"),
+        F.col("ingestion_ts").cast("timestamp").alias("ingestion_ts"),
+        F.col("source_file").cast("string").alias("source_file"),
     )
 
     # COMMAND ----------
-    customers_typed = (
-        bronze_customers.select(
-            F.col("customer_id").cast("int").alias("customer_id"),
-            F.coalesce(F.col("first_name").cast("string"), F.lit("Unknown")).alias(
-                "first_name"
+    customers_typed = bronze_customers.select(
+        F.col("customer_id").cast("int").alias("customer_id"),
+        F.coalesce(F.col("first_name").cast("string"), F.lit("Unknown")).alias(
+            "first_name"
+        ),
+        F.coalesce(F.col("last_name").cast("string"), F.lit("Unknown")).alias(
+            "last_name"
+        ),
+        F.coalesce(
+            F.col("email").cast("string"),
+            F.concat(
+                F.lit("unknown_"),
+                F.col("customer_id").cast("string"),
+                F.lit("@example.com"),
             ),
-            F.coalesce(F.col("last_name").cast("string"), F.lit("Unknown")).alias(
-                "last_name"
-            ),
-            F.coalesce(
-                F.col("email").cast("string"),
-                F.concat(
-                    F.lit("unknown_"),
-                    F.col("customer_id").cast("string"),
-                    F.lit("@example.com"),
-                ),
-            ).alias("email"),
-            F.coalesce(F.col("city").cast("string"), F.lit("Unknown")).alias("city"),
-            F.to_date("signup_date").alias("signup_date"),
-            F.to_timestamp("updated_at").alias("updated_at"),
-            F.col("ingestion_ts").cast("timestamp").alias("ingestion_ts"),
-            F.col("source_file").cast("string").alias("source_file"),
-        )
-        .filter(F.col("customer_id").isNotNull())
-    )
+        ).alias("email"),
+        F.coalesce(F.col("city").cast("string"), F.lit("Unknown")).alias("city"),
+        F.to_date("signup_date").alias("signup_date"),
+        F.to_timestamp("updated_at").alias("updated_at"),
+        F.col("ingestion_ts").cast("timestamp").alias("ingestion_ts"),
+        F.col("source_file").cast("string").alias("source_file"),
+    ).filter(F.col("customer_id").isNotNull())
 
     silver_customers_current = dedupe_latest(customers_typed, "customer_id")
 
     # COMMAND ----------
-    orders_typed = (
-        bronze_orders.select(
-            F.col("order_line_id").cast("int").alias("order_line_id"),
-            F.col("order_id").cast("int").alias("order_id"),
-            F.to_date("order_date").alias("order_date"),
-            F.col("customer_id").cast("int").alias("customer_id"),
-            F.col("product_id").cast("int").alias("product_id"),
-            F.coalesce(F.col("quantity").cast("int"), F.lit(1)).alias("quantity"),
-            F.to_timestamp("updated_at").alias("updated_at"),
-            F.col("ingestion_ts").cast("timestamp").alias("ingestion_ts"),
-            F.col("source_file").cast("string").alias("source_file"),
-        )
-        .filter(F.col("order_line_id").isNotNull())
-    )
+    orders_typed = bronze_orders.select(
+        F.col("order_line_id").cast("int").alias("order_line_id"),
+        F.col("order_id").cast("int").alias("order_id"),
+        F.to_date("order_date").alias("order_date"),
+        F.col("customer_id").cast("int").alias("customer_id"),
+        F.col("product_id").cast("int").alias("product_id"),
+        F.coalesce(F.col("quantity").cast("int"), F.lit(1)).alias("quantity"),
+        F.to_timestamp("updated_at").alias("updated_at"),
+        F.col("ingestion_ts").cast("timestamp").alias("ingestion_ts"),
+        F.col("source_file").cast("string").alias("source_file"),
+    ).filter(F.col("order_line_id").isNotNull())
 
     dedup_orders = dedupe_latest(orders_typed, "order_line_id")
 
@@ -155,11 +147,9 @@ else:
             f"FROM {DATABASE}.{table_name}"
         ).show(truncate=False)
 
-    spark.sql(
-        f"""
+    spark.sql(f"""
         SELECT customer_id, COUNT(*) AS row_count
         FROM {DATABASE}.silver_customers_current
         GROUP BY customer_id
         HAVING COUNT(*) > 1
-        """
-    ).show(truncate=False)
+        """).show(truncate=False)
