@@ -1,5 +1,7 @@
 # databricks-retail-lakehouse
 
+[![CI](https://github.com/Marlediv/databricks-retail-lakehouse/actions/workflows/ci.yml/badge.svg)](https://github.com/Marlediv/databricks-retail-lakehouse/actions/workflows/ci.yml) [![Python](https://img.shields.io/static/v1?label=python&message=3.12&color=3776AB)](https://www.python.org/)
+
 Retail Lakehouse Mini-Projekt auf Databricks mit einem klaren Medallion-Aufbau (Bronze, Silver, Gold) und Delta-Tabellen. Die Pipeline verarbeitet CSV-Daten aus Unity Catalog Volumes, bereitet sie schrittweise auf und liefert KPI-Tabellen für Reporting. Zusätzlich wird eine SCD2-Kundendimension aufgebaut und mit einfachen Qualitätsprüfungen validiert.
 
 ## Warum dieses Projekt?
@@ -132,6 +134,34 @@ Belege aus dem Databricks SQL Editor für die wichtigsten Pipeline-Schritte.
 - Fehlerhafte Volume-Pfade: Pfade exakt wie oben verwenden und Dateinamen prüfen.
 - Warehouse nicht aktiv: SQL-Queries laufen nur mit gestartetem SQL Warehouse.
 - Leere Gold-Ergebnisse: zuerst prüfen, ob Bronze- und Silver-Tabellen erfolgreich aufgebaut wurden.
+
+## CI / Tests
+
+- **Workflow:** `.github/workflows/ci.yml` (Workflow-Name: CI, triggered on `push`/`pull_request` to `main`). Die Pipeline installiert `pytest`, `ruff`, `black` und `nbformat`, führt `ruff check .`, `black --check .`, `pytest -q` sowie eine Notebook-Validierung (`nbformat` prüft JSON, leere Outputs und zurückgesetzte `execution_count`) durch und kompiliert alle von Git erfassten `.py`-Dateien via `python -m py_compile`.
+- **Repository checks:** `tests/test_repo_integrity.py` stellt sicher, dass Schlüsselverzeichnisse (z. B. `docs`, `notebooks`, `sql`) und zumindest ein Notebook existieren sowie dass keine offensichtlichen TODO/FIXME-Platzhalter in kritischen Textdateien stehen.
+- **Local commands:**
+
+```bash
+python -m pip install --upgrade pip
+python -m pip install pytest ruff black nbformat
+ruff check .
+black --check .
+pytest -q
+python -m py_compile $(git ls-files '*.py')
+python - <<'PY'
+import nbformat
+from pathlib import Path
+
+for path in Path('.').rglob('*.ipynb'):
+    nb = nbformat.read(path, as_version=4)
+    for cell in nb.cells:
+        outputs = cell.get('outputs') or []
+        assert not outputs, f'Outputs detected in {path}'
+        assert cell.get('execution_count') is None, f'Execution count still set in {path}'
+PY
+```
+
+Alle Befehle laufen lokal ohne Databricks-Workspace oder Secrets.
 
 ## Notebooks (optional)
 

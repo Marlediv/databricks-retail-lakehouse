@@ -1,0 +1,82 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt', '**/pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pytest ruff black nbformat
+
+      - name: Lint with ruff
+        run: ruff check .
+
+      - name: Check formatting
+        run: black --check .
+
+      - name: Run pytest
+        run: pytest -q
+
+      - name: Validate notebooks
+        run: |
+          python - <<'PY'
+import nbformat
+import sys
+from pathlib import Path
+
+ipynb_files = list(Path(".").rglob("*.ipynb"))
+if not ipynb_files:
+    sys.exit(0)
+
+errors = []
+for path in ipynb_files:
+    try:
+        nb = nbformat.read(path, as_version=4)
+    except Exception as exc:
+        errors.append(f"{path}: failed to parse ({exc})")
+        continue
+
+    for index, cell in enumerate(nb.cells, start=1):
+        outputs = cell.get("outputs") or []
+        if outputs:
+            errors.append(f"Notebook outputs detected in {path} on cell {index}")
+            break
+        if cell.get("execution_count") is not None:
+            errors.append(f"Notebook execution count not cleared in {path} on cell {index}")
+            break
+
+if errors:
+    raise SystemExit("\n".join(errors))
+PY
+
+      - name: Python syntax check
+        run: |
+          files=$(git ls-files '*.py')
+          if [ -n "$files" ]; then
+            python -m py_compile $files
+          else
+            echo "No .py files tracked"
+          fi
