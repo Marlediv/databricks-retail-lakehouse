@@ -1,6 +1,10 @@
 # databricks-retail-lakehouse
 
-[![CI](https://github.com/Marlediv/databricks-retail-lakehouse/actions/workflows/ci.yml/badge.svg)](https://github.com/Marlediv/databricks-retail-lakehouse/actions/workflows/ci.yml) [![Python](https://img.shields.io/static/v1?label=python&message=3.12&color=3776AB)](https://www.python.org/)
+[![CI](https://github.com/Marlediv/databricks-retail-lakehouse/actions/workflows/ci.yml/badge.svg)](https://github.com/Marlediv/databricks-retail-lakehouse/actions/workflows/ci.yml)
+[![Format](https://github.com/Marlediv/databricks-retail-lakehouse/actions/workflows/format.yml/badge.svg)](https://github.com/Marlediv/databricks-retail-lakehouse/actions/workflows/format.yml)
+[![Python 3.13](https://img.shields.io/badge/python-3.13-3776AB.svg)](https://www.python.org/)
+[![Ruff](https://img.shields.io/badge/lint-ruff-D7FF64.svg)](https://github.com/astral-sh/ruff)
+[![Black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
 Retail Lakehouse Mini-Projekt auf Databricks mit einem klaren Medallion-Aufbau (Bronze, Silver, Gold) und Delta-Tabellen. Die Pipeline verarbeitet CSV-Daten aus Unity Catalog Volumes, bereitet sie schrittweise auf und liefert KPI-Tabellen für Reporting. Zusätzlich wird eine SCD2-Kundendimension aufgebaut und mit einfachen Qualitätsprüfungen validiert.
 
@@ -135,11 +139,13 @@ Belege aus dem Databricks SQL Editor für die wichtigsten Pipeline-Schritte.
 - Warehouse nicht aktiv: SQL-Queries laufen nur mit gestartetem SQL Warehouse.
 - Leere Gold-Ergebnisse: zuerst prüfen, ob Bronze- und Silver-Tabellen erfolgreich aufgebaut wurden.
 
-## CI / Tests
+## Quality & CI
 
-- **Workflow:** `.github/workflows/ci.yml` (Workflow-Name: CI, triggered on `push`/`pull_request` to `main`). Die Pipeline installiert `pytest`, `ruff`, `black` und `nbformat`, führt `ruff check .`, `black --check .`, `pytest -q` sowie eine Notebook-Validierung (`nbformat` prüft JSON, leere Outputs und zurückgesetzte `execution_count`) durch und kompiliert alle von Git erfassten `.py`-Dateien via `python -m py_compile`.
-- **Repository checks:** `tests/test_repo_integrity.py` stellt sicher, dass Schlüsselverzeichnisse (z. B. `docs`, `notebooks`, `sql`) und zumindest ein Notebook existieren sowie dass keine offensichtlichen Platzhaltermarkierungen in kritischen Textdateien stehen.
-- **Local commands:**
+- **Ruff / Black / Pytest:** Der CI-Workflow `.github/workflows/ci.yml` lintet den Code mit `ruff check .`, prüft Formatierung mit `black --check .` und führt `pytest -q` aus.
+- **Notebook-Validation:** Zusätzlich validiert CI alle `.ipynb` via `nbformat` (JSON parsebar, keine Outputs committed, `execution_count` leer) und kompiliert alle getrackten Python-Dateien.
+- **Manueller Format-Workflow:** Wenn `black` lokal nicht ausführbar ist (z. B. DNS/PEP668), kann `.github/workflows/format.yml` manuell (`workflow_dispatch`) gestartet werden. Der Workflow führt `black .` aus, committed nur bei Änderungen und stößt danach CI erneut an.
+- **Repository checks:** `tests/test_repo_integrity.py` stellt sicher, dass Kernpfade (`docs`, `notebooks`, `sql`) und Notebook-Artefakte vorhanden sind und keine offensichtlichen Platzhaltermarkierungen in kritischen Textdateien enthalten sind.
+- **Lokale Befehle:**
 
 ```bash
 python -m pip install --upgrade pip
