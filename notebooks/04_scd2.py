@@ -1,7 +1,8 @@
 # Databricks notebook source
 # MAGIC %md
 # MAGIC # 04 SCD2
-# MAGIC Baut/aktualisiert die SCD2-Kundentabelle via MERGE mit Hash-basierter Änderungslogik.
+# MAGIC Baut/aktualisiert die SCD2-Kundentabelle via MERGE mit hash-basierter
+# MAGIC Aenderungslogik.
 
 # COMMAND ----------
 from pyspark.sql import functions as F
@@ -125,4 +126,6 @@ else:
     duplicate_current.show(truncate=False)
 
     if duplicate_current.limit(1).count() > 0:
-        raise ValueError("SCD2 validation failed: more than one current row per customer_id found.")
+        raise ValueError(
+            "SCD2 validation failed: more than one current row per customer_id found."
+        )

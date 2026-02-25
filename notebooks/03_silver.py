@@ -1,7 +1,8 @@
 # Databricks notebook source
 # MAGIC %md
 # MAGIC # 03 Silver
-# MAGIC Typisierung, Deduplizierung und Anreicherung für Kunden, Produkte und Order-Lines.
+# MAGIC Typisierung, Deduplizierung und Anreicherung fuer Kunden, Produkte und
+# MAGIC Order-Lines.
 
 # COMMAND ----------
 from pyspark.sql import functions as F
@@ -23,8 +24,14 @@ else:
 
     # COMMAND ----------
     def dedupe_latest(df, key_col: str):
-        w = Window.partitionBy(key_col).orderBy(F.col("updated_at").desc(), F.col("ingestion_ts").desc())
-        return df.withColumn("rn", F.row_number().over(w)).filter(F.col("rn") == 1).drop("rn")
+        w = Window.partitionBy(key_col).orderBy(
+            F.col("updated_at").desc(), F.col("ingestion_ts").desc()
+        )
+        return (
+            df.withColumn("rn", F.row_number().over(w))
+            .filter(F.col("rn") == 1)
+            .drop("rn")
+        )
 
     # COMMAND ----------
     silver_products = (
@@ -43,11 +50,19 @@ else:
     customers_typed = (
         bronze_customers.select(
             F.col("customer_id").cast("int").alias("customer_id"),
-            F.coalesce(F.col("first_name").cast("string"), F.lit("Unknown")).alias("first_name"),
-            F.coalesce(F.col("last_name").cast("string"), F.lit("Unknown")).alias("last_name"),
+            F.coalesce(F.col("first_name").cast("string"), F.lit("Unknown")).alias(
+                "first_name"
+            ),
+            F.coalesce(F.col("last_name").cast("string"), F.lit("Unknown")).alias(
+                "last_name"
+            ),
             F.coalesce(
                 F.col("email").cast("string"),
-                F.concat(F.lit("unknown_"), F.col("customer_id").cast("string"), F.lit("@example.com")),
+                F.concat(
+                    F.lit("unknown_"),
+                    F.col("customer_id").cast("string"),
+                    F.lit("@example.com"),
+                ),
             ).alias("email"),
             F.coalesce(F.col("city").cast("string"), F.lit("Unknown")).alias("city"),
             F.to_date("signup_date").alias("signup_date"),
@@ -91,7 +106,9 @@ else:
             F.col("p.category"),
             F.col("p.price"),
             F.col("o.quantity"),
-            (F.col("o.quantity") * F.col("p.price")).cast("decimal(12,2)").alias("line_revenue"),
+            (F.col("o.quantity") * F.col("p.price"))
+            .cast("decimal(12,2)")
+            .alias("line_revenue"),
             F.col("o.updated_at"),
             F.col("o.ingestion_ts"),
             F.col("o.source_file"),
@@ -118,16 +135,24 @@ else:
         .saveAsTable(f"{DATABASE}.silver_order_lines")
     )
 
-    print("Silver tables written: silver_customers_current, silver_products, silver_order_lines")
+    print(
+        "Silver tables written: silver_customers_current, "
+        "silver_products, silver_order_lines"
+    )
 
     # COMMAND ----------
     # MAGIC %md
     # MAGIC ## Validation
 
     # COMMAND ----------
-    for table_name in ["silver_customers_current", "silver_products", "silver_order_lines"]:
+    for table_name in [
+        "silver_customers_current",
+        "silver_products",
+        "silver_order_lines",
+    ]:
         spark.sql(
-            f"SELECT '{table_name}' AS table_name, COUNT(*) AS row_count FROM {DATABASE}.{table_name}"
+            f"SELECT '{table_name}' AS table_name, COUNT(*) AS row_count "
+            f"FROM {DATABASE}.{table_name}"
         ).show(truncate=False)
 
     spark.sql(

@@ -40,7 +40,8 @@ else:
     print("Row counts:")
     for table_name in expected_tables:
         spark.sql(
-            f"SELECT '{table_name}' AS table_name, COUNT(*) AS row_count FROM {DATABASE}.{table_name}"
+            f"SELECT '{table_name}' AS table_name, COUNT(*) AS row_count "
+            f"FROM {DATABASE}.{table_name}"
         ).show(truncate=False)
 
     # COMMAND ----------
@@ -73,10 +74,12 @@ else:
 
     print("Gold preview: gold_product_revenue")
     spark.sql(
-        f"SELECT * FROM {DATABASE}.gold_product_revenue ORDER BY total_revenue DESC LIMIT 10"
+        f"SELECT * FROM {DATABASE}.gold_product_revenue "
+        "ORDER BY total_revenue DESC LIMIT 10"
     ).show(truncate=False)
 
     print("Gold preview: gold_top_customers")
     spark.sql(
-        f"SELECT * FROM {DATABASE}.gold_top_customers ORDER BY total_revenue DESC LIMIT 10"
+        f"SELECT * FROM {DATABASE}.gold_top_customers "
+        "ORDER BY total_revenue DESC LIMIT 10"
     ).show(truncate=False)

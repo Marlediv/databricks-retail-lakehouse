@@ -9,8 +9,12 @@ from notebooks._spark import spark
 
 DATABASE = "retail_lakehouse"
 
-CUSTOMERS_PATH = "/Volumes/workspace/retail_lakehouse/retail_lakehouse_files/customers.csv"
-PRODUCTS_PATH = "/Volumes/workspace/retail_lakehouse/retail_lakehouse_files/products.csv"
+CUSTOMERS_PATH = (
+    "/Volumes/workspace/retail_lakehouse/retail_lakehouse_files/customers.csv"
+)
+PRODUCTS_PATH = (
+    "/Volumes/workspace/retail_lakehouse/retail_lakehouse_files/products.csv"
+)
 ORDERS_PATH = "/Volumes/workspace/retail_lakehouse/retail_lakehouse_files/orders.csv"
 
 if spark is None:
@@ -63,5 +67,6 @@ else:
     # COMMAND ----------
     for table_name in ["bronze_customers", "bronze_products", "bronze_orders"]:
         spark.sql(
-            f"SELECT '{table_name}' AS table_name, COUNT(*) AS row_count FROM {DATABASE}.{table_name}"
+            f"SELECT '{table_name}' AS table_name, COUNT(*) AS row_count "
+            f"FROM {DATABASE}.{table_name}"
         ).show(truncate=False)

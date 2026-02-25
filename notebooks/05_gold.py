@@ -64,14 +64,22 @@ else:
         .saveAsTable(f"{DATABASE}.gold_top_customers")
     )
 
-    print("Gold tables written: gold_daily_revenue, gold_product_revenue, gold_top_customers")
+    print(
+        "Gold tables written: gold_daily_revenue, "
+        "gold_product_revenue, gold_top_customers"
+    )
 
     # COMMAND ----------
     # MAGIC %md
     # MAGIC ## Validation
 
     # COMMAND ----------
-    for table_name in ["gold_daily_revenue", "gold_product_revenue", "gold_top_customers"]:
+    for table_name in [
+        "gold_daily_revenue",
+        "gold_product_revenue",
+        "gold_top_customers",
+    ]:
         spark.sql(
-            f"SELECT '{table_name}' AS table_name, COUNT(*) AS row_count FROM {DATABASE}.{table_name}"
+            f"SELECT '{table_name}' AS table_name, COUNT(*) AS row_count "
+            f"FROM {DATABASE}.{table_name}"
         ).show(truncate=False)
