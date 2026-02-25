@@ -5,6 +5,7 @@
 
 # COMMAND ----------
 from pyspark.sql import functions as F
+from notebooks._spark import spark
 
 DATABASE = "retail_lakehouse"
 
@@ -12,52 +13,55 @@ CUSTOMERS_PATH = "/Volumes/workspace/retail_lakehouse/retail_lakehouse_files/cus
 PRODUCTS_PATH = "/Volumes/workspace/retail_lakehouse/retail_lakehouse_files/products.csv"
 ORDERS_PATH = "/Volumes/workspace/retail_lakehouse/retail_lakehouse_files/orders.csv"
 
-spark.sql(f"CREATE DATABASE IF NOT EXISTS {DATABASE}")
-spark.sql(f"USE {DATABASE}")
+if spark is None:
+    print("Skipping Spark work (no Spark runtime available).")
+else:
+    spark.sql(f"CREATE DATABASE IF NOT EXISTS {DATABASE}")
+    spark.sql(f"USE {DATABASE}")
 
-# COMMAND ----------
-def load_csv_with_metadata(path: str):
-    return (
-        spark.read.format("csv")
-        .option("header", True)
-        .load(path)
-        .withColumn("ingestion_ts", F.current_timestamp())
-        .withColumn("source_file", F.col("_metadata.file_path"))
+    # COMMAND ----------
+    def load_csv_with_metadata(path: str):
+        return (
+            spark.read.format("csv")
+            .option("header", True)
+            .load(path)
+            .withColumn("ingestion_ts", F.current_timestamp())
+            .withColumn("source_file", F.col("_metadata.file_path"))
+        )
+
+    # COMMAND ----------
+    bronze_customers = load_csv_with_metadata(CUSTOMERS_PATH)
+    bronze_products = load_csv_with_metadata(PRODUCTS_PATH)
+    bronze_orders = load_csv_with_metadata(ORDERS_PATH)
+
+    # COMMAND ----------
+    (
+        bronze_customers.write.format("delta")
+        .mode("overwrite")
+        .option("overwriteSchema", "true")
+        .saveAsTable(f"{DATABASE}.bronze_customers")
+    )
+    (
+        bronze_products.write.format("delta")
+        .mode("overwrite")
+        .option("overwriteSchema", "true")
+        .saveAsTable(f"{DATABASE}.bronze_products")
+    )
+    (
+        bronze_orders.write.format("delta")
+        .mode("overwrite")
+        .option("overwriteSchema", "true")
+        .saveAsTable(f"{DATABASE}.bronze_orders")
     )
 
-# COMMAND ----------
-bronze_customers = load_csv_with_metadata(CUSTOMERS_PATH)
-bronze_products = load_csv_with_metadata(PRODUCTS_PATH)
-bronze_orders = load_csv_with_metadata(ORDERS_PATH)
+    print("Bronze tables written: bronze_customers, bronze_products, bronze_orders")
 
-# COMMAND ----------
-(
-    bronze_customers.write.format("delta")
-    .mode("overwrite")
-    .option("overwriteSchema", "true")
-    .saveAsTable(f"{DATABASE}.bronze_customers")
-)
-(
-    bronze_products.write.format("delta")
-    .mode("overwrite")
-    .option("overwriteSchema", "true")
-    .saveAsTable(f"{DATABASE}.bronze_products")
-)
-(
-    bronze_orders.write.format("delta")
-    .mode("overwrite")
-    .option("overwriteSchema", "true")
-    .saveAsTable(f"{DATABASE}.bronze_orders")
-)
+    # COMMAND ----------
+    # MAGIC %md
+    # MAGIC ## Validation
 
-print("Bronze tables written: bronze_customers, bronze_products, bronze_orders")
-
-# COMMAND ----------
-# MAGIC %md
-# MAGIC ## Validation
-
-# COMMAND ----------
-for table_name in ["bronze_customers", "bronze_products", "bronze_orders"]:
-    spark.sql(
-        f"SELECT '{table_name}' AS table_name, COUNT(*) AS row_count FROM {DATABASE}.{table_name}"
-    ).show(truncate=False)
+    # COMMAND ----------
+    for table_name in ["bronze_customers", "bronze_products", "bronze_orders"]:
+        spark.sql(
+            f"SELECT '{table_name}' AS table_name, COUNT(*) AS row_count FROM {DATABASE}.{table_name}"
+        ).show(truncate=False)

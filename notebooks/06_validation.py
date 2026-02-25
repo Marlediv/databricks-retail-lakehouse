@@ -4,26 +4,7 @@
 # MAGIC Prüft Tabellenbestand, Counts, Dedupe-Regeln und zeigt Gold-Previews.
 
 # COMMAND ----------
-from __future__ import annotations
-
-import os
-
-try:
-    from pyspark.sql import SparkSession  # type: ignore
-except Exception:
-    SparkSession = None  # type: ignore
-
-
-def get_spark():
-    if SparkSession is None:
-        return None
-    return SparkSession.builder.getOrCreate()
-
-
-spark = get_spark()
-
-runtime_hint = os.environ.get("DATABRICKS_RUNTIME_VERSION", "local-or-ci")
-print(f"Runtime context: {runtime_hint}")
+from notebooks._spark import spark
 
 
 DATABASE = "retail_lakehouse"
