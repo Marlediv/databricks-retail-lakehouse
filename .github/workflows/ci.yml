@@ -43,34 +43,41 @@ jobs:
       - name: Validate notebooks
         run: |
           python - <<'PY'
-import nbformat
-import sys
-from pathlib import Path
+          import sys
+          from pathlib import Path
+          import nbformat
 
-ipynb_files = list(Path(".").rglob("*.ipynb"))
-if not ipynb_files:
-    sys.exit(0)
+          ipynb_files = list(Path(".").rglob("*.ipynb"))
+          if not ipynb_files:
+              print("No notebooks found. Skipping notebook validation.")
+              sys.exit(0)
 
-errors = []
-for path in ipynb_files:
-    try:
-        nb = nbformat.read(path, as_version=4)
-    except Exception as exc:
-        errors.append(f"{path}: failed to parse ({exc})")
-        continue
+          errors = []
 
-    for index, cell in enumerate(nb.cells, start=1):
-        outputs = cell.get("outputs") or []
-        if outputs:
-            errors.append(f"Notebook outputs detected in {path} on cell {index}")
-            break
-        if cell.get("execution_count") is not None:
-            errors.append(f"Notebook execution count not cleared in {path} on cell {index}")
-            break
+          for path in ipynb_files:
+              try:
+                  nb = nbformat.read(path, as_version=4)
+              except Exception as exc:
+                  errors.append(f"{path}: failed to parse ({exc})")
+                  continue
 
-if errors:
-    raise SystemExit("\n".join(errors))
-PY
+              for idx, cell in enumerate(nb.cells, start=1):
+                  outputs = cell.get("outputs") or []
+                  if outputs:
+                      errors.append(f"Notebook outputs detected in {path} on cell {idx}")
+                      break
+                  if cell.get("execution_count") is not None:
+                      errors.append(f"Notebook execution_count not cleared in {path} on cell {idx}")
+                      break
+
+          if errors:
+              print("Notebook validation failed:")
+              for e in errors:
+                  print(f"- {e}")
+              sys.exit(1)
+
+          print("Notebook validation OK.")
+          PY
 
       - name: Python syntax check
         run: |
