@@ -5,6 +5,7 @@ on:
 
 permissions:
   contents: write
+  actions: write
 
 jobs:
   black-format:
@@ -29,6 +30,7 @@ jobs:
         run: black .
 
       - name: Commit and push changes
+        id: commit_push
         run: |
           git status --short
           if [ -n "$(git status --porcelain)" ]; then
@@ -37,6 +39,14 @@ jobs:
             git add .
             git commit -m "ci: apply black formatting"
             git push origin main
+            echo "pushed=true" >> "$GITHUB_OUTPUT"
           else
             echo "No formatting changes to commit."
+            echo "pushed=false" >> "$GITHUB_OUTPUT"
           fi
+
+      - name: Trigger CI workflow
+        if: steps.commit_push.outputs.pushed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh workflow run CI --ref main
