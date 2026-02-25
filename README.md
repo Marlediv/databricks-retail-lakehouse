@@ -138,7 +138,7 @@ Belege aus dem Databricks SQL Editor für die wichtigsten Pipeline-Schritte.
 ## CI / Tests
 
 - **Workflow:** `.github/workflows/ci.yml` (Workflow-Name: CI, triggered on `push`/`pull_request` to `main`). Die Pipeline installiert `pytest`, `ruff`, `black` und `nbformat`, führt `ruff check .`, `black --check .`, `pytest -q` sowie eine Notebook-Validierung (`nbformat` prüft JSON, leere Outputs und zurückgesetzte `execution_count`) durch und kompiliert alle von Git erfassten `.py`-Dateien via `python -m py_compile`.
-- **Repository checks:** `tests/test_repo_integrity.py` stellt sicher, dass Schlüsselverzeichnisse (z. B. `docs`, `notebooks`, `sql`) und zumindest ein Notebook existieren sowie dass keine offensichtlichen TODO/FIXME-Platzhalter in kritischen Textdateien stehen.
+- **Repository checks:** `tests/test_repo_integrity.py` stellt sicher, dass Schlüsselverzeichnisse (z. B. `docs`, `notebooks`, `sql`) und zumindest ein Notebook existieren sowie dass keine offensichtlichen Platzhaltermarkierungen in kritischen Textdateien stehen.
 - **Local commands:**
 
 ```bash
