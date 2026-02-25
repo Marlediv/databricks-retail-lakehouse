@@ -163,6 +163,8 @@ PY
 
 Alle Befehle laufen lokal ohne Databricks-Workspace oder Secrets.
 
+Wenn `black` lokal nicht installierbar ist (z. B. DNS/PEP668), kann der manuelle Workflow `.github/workflows/format.yml` ueber GitHub Actions (`format`, Trigger: `workflow_dispatch`) gestartet werden; er fuehrt `black .` aus und pusht nur bei echten Format-Aenderungen nach `main`.
+
 ## Notebooks (optional)
 
 Das SQL-Runbook unter `sql/` ist die primäre Referenz (Source of Truth).  
